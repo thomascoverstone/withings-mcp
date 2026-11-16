@@ -1,0 +1,21 @@
+# Secrets and personal data: never commit
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+tokens*.json
+*.local.json
+deploy-output.json
+client_secret*.json
+*.pem
+
+# Local copies, caches and build output
+backup-*/
+node_modules/
+.wrangler/
+.venv/
+__pycache__/
+*.pyc
+*.log

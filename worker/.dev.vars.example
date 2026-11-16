@@ -1,0 +1,5 @@
+# Local-only secrets for `wrangler dev` (copy to .dev.vars; never deployed, never committed)
+WITHINGS_CLIENT_ID=your-client-id
+WITHINGS_CLIENT_SECRET=your-client-secret
+ACCESS_KEY=a-long-random-string-at-least-12-chars
+PUBLIC_URL=http://localhost:8787
