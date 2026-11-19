@@ -6,15 +6,16 @@ Opens the Withings consent page, captures the OAuth redirect, exchanges the
 (30-second!) authorization code for tokens and stores them in tokens.json.
 After that the MCP server refreshes the tokens on its own.
 
-Usage:
-    .venv\\Scripts\\python.exe withings_auth.py [--no-browser] [--timeout SECONDS]
+Usage (with the project's virtual environment active):
+    python withings_auth.py [--no-browser] [--timeout SECONDS]
 
 Withings only accepts HTTPS callback URLs on port 443 (no localhost, no IPs),
 so the redirect cannot be caught by a local web server.  Instead the browser
 lands on the registered callback URL with ?code=...&state=... in the address
 bar (the page itself shows a JSON error - that is expected).  You copy that
-address (Ctrl+L, Ctrl+C) and this script picks it up from the clipboard, or
-you paste it into the terminal.  Either way it exchanges the code immediately.
+address and this script picks it up from the clipboard (Windows, macOS, and
+Linux with wl-paste, xclip or xsel), or you paste it into the terminal.
+Either way it exchanges the code immediately.
 
 If WITHINGS_REDIRECT_URI ever points at localhost (not allowed by Withings at
 the time of writing) the script falls back to a local redirect catcher.
@@ -23,12 +24,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import ctypes
+import os
 import secrets
+import shutil
+import subprocess
 import sys
 import threading
-import time
 import webbrowser
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -58,12 +61,12 @@ def parse_redirect(raw: str) -> dict[str, str]:
 
 
 # --------------------------------------------------------------------------
-# clipboard (Windows only; returns None elsewhere)
+# clipboard
 # --------------------------------------------------------------------------
 
-def read_clipboard() -> str | None:
-    if sys.platform != "win32":
-        return None
+def _read_windows_clipboard() -> str | None:
+    import ctypes  # only needed (and only usable this way) on Windows
+
     CF_UNICODETEXT = 13
     user32 = ctypes.windll.user32
     kernel32 = ctypes.windll.kernel32
@@ -89,15 +92,46 @@ def read_clipboard() -> str | None:
         user32.CloseClipboard()
 
 
+def _command_reader(cmd: list[str]) -> Callable[[], str | None]:
+    def read() -> str | None:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=2, check=False)
+        return result.stdout if result.returncode == 0 else None
+
+    return read
+
+
+def clipboard_reader() -> Callable[[], str | None] | None:
+    """A function that returns the clipboard text, or None when this system offers no way to read it."""
+    if sys.platform == "win32":
+        return _read_windows_clipboard
+    candidates: list[list[str]] = []
+    if sys.platform == "darwin":
+        candidates.append(["pbpaste"])
+    else:
+        if os.environ.get("WAYLAND_DISPLAY"):
+            candidates.append(["wl-paste", "--no-newline"])
+        if os.environ.get("DISPLAY"):
+            candidates += [["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]
+    for cmd in candidates:
+        if shutil.which(cmd[0]):
+            return _command_reader(cmd)
+    return None
+
+
 def wait_for_copied_or_pasted_redirect(timeout: float) -> dict[str, str]:
     """
-    Race two sources: the clipboard (user pressed Ctrl+L, Ctrl+C in the
+    Race two sources: the clipboard (user copied the address bar in the
     browser) and stdin (user pasted the URL and pressed Enter).
     """
+    read_clipboard = clipboard_reader()
+    mod = "Cmd" if sys.platform == "darwin" else "Ctrl"
     say("After you click Allow, the browser lands on a page that shows an error.")
     say("That is expected. The code is in the ADDRESS BAR. Do one of these, fast:")
-    say("  * Click the address bar (Ctrl+L) and copy it (Ctrl+C). I am watching the clipboard.")
-    say("  * Or paste the full address here and press Enter.")
+    if read_clipboard:
+        say(f"  * Click the address bar ({mod}+L) and copy it ({mod}+C). I am watching the clipboard.")
+        say("  * Or paste the full address here and press Enter.")
+    else:
+        say("  * Copy the full address from the address bar, paste it here and press Enter.")
     say("Withings codes expire 30 seconds after the redirect.")
     say()
 
@@ -110,14 +144,13 @@ def wait_for_copied_or_pasted_redirect(timeout: float) -> dict[str, str]:
         )
 
     def watch_clipboard() -> None:
+        if read_clipboard is None:
+            return  # no clipboard access here; stdin still works
         try:
             baseline = read_clipboard()
         except Exception:  # noqa: BLE001
             return  # clipboard unavailable; stdin still works
-        if baseline is None and sys.platform != "win32":
-            return
-        while not done.is_set():
-            time.sleep(0.25)
+        while not done.wait(0.3):
             try:
                 text = read_clipboard()
             except Exception:  # noqa: BLE001
@@ -309,7 +342,7 @@ async def main(argv: list[str]) -> int:
 
     say()
     say("Done. Start a new Claude session and ask something like:")
-    say('  "What did my Body Scan say this morning?"')
+    say('  "What did I weigh this morning?"')
     return 0
 
 

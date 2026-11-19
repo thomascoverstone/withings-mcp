@@ -2,11 +2,12 @@
 """
 Withings MCP server.
 
-Exposes the user's Withings scale data (Body Scan 2: weight, body composition,
-segmental analysis, vascular age, pulse wave velocity, nerve health score,
-heart rate, ECG recordings) to Claude over the MCP stdio transport.
+Exposes the user's Withings data (weight, body composition, segmental analysis,
+vascular age, pulse wave velocity, nerve health score, heart rate, ECG
+recordings, linked devices) to Claude over the MCP stdio transport.
 
-Run the one-time login first:   .venv\\Scripts\\python.exe withings_auth.py
+Run the one-time login first (with the project's virtual environment active):
+    python withings_auth.py
 Then register this file as a stdio MCP server (see README.md).
 """
 from __future__ import annotations
@@ -35,7 +36,8 @@ log = logging.getLogger("withings.server")
 mcp = MCPServer(
     "withings_mcp",
     instructions=(
-        "Live access to the user's Withings account (Body Scan 2 smart scale). "
+        "Live, read-only access to the user's Withings account: weigh-ins and body "
+        "composition from Withings scales, ECG recordings and linked devices. "
         "Masses come back in kg with an lb conversion, fat_ratio is a percent, "
         "and times are ISO-8601 in the user's Withings timezone. "
         "Use withings_get_latest_body_scan for 'what did I weigh today' questions, "
@@ -322,8 +324,8 @@ async def withings_list_ecg_recordings(
 async def withings_get_devices() -> str:
     """
     List the devices linked to the Withings account with model name, battery
-    level and last sync time. Useful to confirm the Body Scan 2 is linked and
-    when it last uploaded. Requires the user.info scope.
+    level and last sync time. Useful to check that a scale is linked and when
+    it last uploaded. Requires the user.info scope.
 
     Returns JSON: {"count", "devices": [ {type, model, model_id, battery,
     last_sync, device_id} ]}.

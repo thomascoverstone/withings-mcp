@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  worker:
+    name: Worker (typecheck and build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Build without deploying
+        run: npm run setup -- --dry-run
+        env:
+          WITHINGS_CLIENT_ID: ci-placeholder-id
+          WITHINGS_CLIENT_SECRET: ci-placeholder-secret
+
+  python:
+    name: Local server (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m compileall -q server.py withings_client.py withings_auth.py
+      - name: Import the modules
+        run: python -c "import server, withings_auth"

@@ -9,6 +9,12 @@
     "bindings": [{ "name": "MCP_OBJECT", "class_name": "WithingsMCP" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WithingsMCP"] }],
-  "kv_namespaces": [{ "binding": "TOKENS", "id": "REPLACE_WITH_KV_ID" }],
-  "vars": { "PUBLIC_URL": "" }
+  // Holds the Withings login. No id needed: the first deploy creates the namespace in your
+  // Cloudflare account and later deploys keep using it.
+  "kv_namespaces": [{ "binding": "TOKENS" }],
+  "vars": {
+    // Optional https origin of the worker for login links. Leave empty to use the origin each
+    // request arrives on.
+    "PUBLIC_URL": ""
+  }
 }

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -37,10 +38,11 @@ REDIRECT_URI = os.environ.get("WITHINGS_REDIRECT_URI", "").strip()
 SCOPE = os.environ.get("WITHINGS_SCOPE", "user.metrics,user.info").strip()
 TOKEN_FILE = Path(os.environ.get("WITHINGS_TOKEN_FILE") or (BASE_DIR / "tokens.json"))
 
-PYTHON_EXE = BASE_DIR / ".venv" / "Scripts" / "python.exe"
+# sys.executable is the interpreter running this server (normally the project's .venv), so the
+# command works as printed on Windows, macOS and Linux.
 AUTH_HELP = (
     "Run the one-time Withings login in a terminal: "
-    f'"{PYTHON_EXE}" "{BASE_DIR / "withings_auth.py"}"'
+    f'"{sys.executable}" "{BASE_DIR / "withings_auth.py"}"'
 )
 
 # Refresh the access token when it has less than this many seconds left.
@@ -470,8 +472,8 @@ def build_sessions(
 ) -> list[dict[str, Any]]:
     """
     Merge measure groups taken within `window_minutes` of each other into one
-    "session" (a Body Scan weigh-in typically produces several groups: body
-    composition, then vascular metrics a few seconds later).  Newest first.
+    "session" (one weigh-in on a body-composition scale typically produces several
+    groups: body composition, then vascular metrics a few seconds later).  Newest first.
     """
     parsed = sorted(
         (parse_group(g, tz) for g in groups if g.get("measures")),
